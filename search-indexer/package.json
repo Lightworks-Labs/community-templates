@@ -4,8 +4,7 @@
   "description": "Build search indexes from markdown files for Lightworks",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
-    "prepare": "npm run build"
+    "build": "tsc"
   },
   "keywords": [
     "lightworks",
