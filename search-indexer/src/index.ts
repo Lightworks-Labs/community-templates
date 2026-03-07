@@ -120,10 +120,14 @@ function walkDir(dir: string, baseDir: string = dir): string[] {
 
 // Generate a stable ID from a path
 function generateId(filePath: string): string {
+  // Use the full path to ensure uniqueness
+  // Replace path separators with underscores, other special chars with dashes
   return filePath
-    .replace(/[^a-zA-Z0-9]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
+    .replace(/\\/g, '/') // Normalize Windows paths
+    .replace(/\//g, '_') // Use underscore for directory separators
+    .replace(/[^a-zA-Z0-9_]/g, '-') // Replace other special chars with dash
+    .replace(/-+/g, '-') // Collapse multiple dashes
+    .replace(/^-|-$/g, '') // Trim leading/trailing dashes
     .toLowerCase();
 }
 
