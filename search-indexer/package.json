@@ -1,0 +1,26 @@
+{
+  "name": "@lightworks/search-indexer",
+  "version": "1.0.0",
+  "description": "Build search indexes from markdown files for Lightworks",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "lightworks",
+    "search",
+    "markdown",
+    "indexer",
+    "github-action"
+  ],
+  "author": "Lightworks Labs",
+  "license": "MIT",
+  "dependencies": {
+    "gray-matter": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

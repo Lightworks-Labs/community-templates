@@ -1,0 +1,40 @@
+name: 'Lightworks Search Indexer'
+description: 'Build a search index from markdown files for Lightworks'
+author: 'Lightworks Labs'
+
+branding:
+  icon: 'search'
+  color: 'blue'
+
+inputs:
+  content-dir:
+    description: 'Directory containing markdown files to index'
+    required: false
+    default: '.'
+  output-dir:
+    description: 'Directory to write the search index'
+    required: false
+    default: '.lightworks/search'
+  config-path:
+    description: 'Path to config file (optional)'
+    required: false
+    default: '.lightworks/search/config.json'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        cd ${{ github.action_path }}
+        npm ci --production
+
+    - name: Build search index
+      shell: bash
+      run: |
+        node ${{ github.action_path }}/dist/index.js "${{ inputs.content-dir }}" "${{ inputs.output-dir }}"
