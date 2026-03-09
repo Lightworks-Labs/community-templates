@@ -11,12 +11,12 @@
           "required": true
         },
         "status": {
-          "type": "select",
+          "type": "multi-select",
           "label": "Status",
           "options": ["todo", "in-progress", "done", "cancelled"]
         },
         "priority": {
-          "type": "select",
+          "type": "multi-select",
           "label": "Priority",
           "options": ["low", "medium", "high", "critical"]
         },
@@ -31,10 +31,6 @@
         "description": {
           "type": "text",
           "label": "Description"
-        },
-        "tags": {
-          "type": "multi-select",
-          "label": "Tags"
         }
       }
     }
