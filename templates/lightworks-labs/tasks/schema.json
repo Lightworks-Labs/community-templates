@@ -4,35 +4,14 @@
       "id": "tasks",
       "name": "Tasks",
       "description": "Track action items, bugs, and follow-ups",
-      "properties": {
-        "title": {
-          "type": "text",
-          "label": "Title",
-          "required": true
-        },
-        "status": {
-          "type": "multi-select",
-          "label": "Status",
-          "options": ["todo", "in-progress", "done", "cancelled"]
-        },
-        "priority": {
-          "type": "multi-select",
-          "label": "Priority",
-          "options": ["low", "medium", "high", "critical"]
-        },
-        "assignee": {
-          "type": "text",
-          "label": "Assignee"
-        },
-        "due_date": {
-          "type": "date",
-          "label": "Due Date"
-        },
-        "description": {
-          "type": "text",
-          "label": "Description"
-        }
-      }
+      "fields": [
+        { "id": "title", "name": "Title", "type": "text", "required": true },
+        { "id": "status", "name": "Status", "type": "multi-select", "options": ["todo", "in-progress", "done", "cancelled"] },
+        { "id": "priority", "name": "Priority", "type": "multi-select", "options": ["low", "medium", "high", "critical"] },
+        { "id": "assignee", "name": "Assignee", "type": "text" },
+        { "id": "due_date", "name": "Due Date", "type": "date" },
+        { "id": "description", "name": "Description", "type": "text" }
+      ]
     }
   ],
   "relationships": []
