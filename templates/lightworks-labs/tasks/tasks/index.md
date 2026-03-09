@@ -1,4 +1,9 @@
-# Tasks
+---
+title: Tasks
+revision: 1
+effective-date: 03/09/2026
+status: active
+---
 
 A running list of tasks for this project.
 
