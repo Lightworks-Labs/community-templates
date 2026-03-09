@@ -1,0 +1,24 @@
+{
+  "id": "tasks",
+  "name": "Tasks",
+  "version": "1.0.0",
+  "subtype": "bundle",
+  "tier": "community",
+  "description": "A lightweight task tracker with status, priority, and assignee fields for managing team action items.",
+  "author": "lightworks-labs",
+  "tags": [
+    "tasks",
+    "project-management",
+    "action-items",
+    "workflow"
+  ],
+  "databases": [
+    "tasks"
+  ],
+  "workflows": [],
+  "record_templates": [],
+  "requires_subscription": false,
+  "min_lightworks_version": "1.0.0",
+  "created_at": "2026-03-09T00:00:00Z",
+  "updated_at": "2026-03-09T00:00:00Z"
+}
