@@ -1,9 +1,11 @@
 {
   "properties": {
+    "title": { "type": "text" },
     "status": { "type": "select" },
     "priority": { "type": "select" },
     "assignee": { "type": "text" },
     "due_date": { "type": "date" },
-    "description": { "type": "text" }
+    "description": { "type": "text" },
+    "tags": { "type": "multi-select" }
   }
 }
