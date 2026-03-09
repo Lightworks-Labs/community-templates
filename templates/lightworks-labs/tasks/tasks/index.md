@@ -3,6 +3,7 @@ title: Tasks
 revision: 1
 effective-date: 03/09/2026
 status: active
+tags:
 ---
 
 A running list of tasks for this project.
