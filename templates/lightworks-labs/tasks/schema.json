@@ -1,0 +1,43 @@
+{
+  "databases": [
+    {
+      "id": "tasks",
+      "name": "Tasks",
+      "description": "Track action items, bugs, and follow-ups",
+      "properties": {
+        "title": {
+          "type": "text",
+          "label": "Title",
+          "required": true
+        },
+        "status": {
+          "type": "select",
+          "label": "Status",
+          "options": ["todo", "in-progress", "done", "cancelled"]
+        },
+        "priority": {
+          "type": "select",
+          "label": "Priority",
+          "options": ["low", "medium", "high", "critical"]
+        },
+        "assignee": {
+          "type": "text",
+          "label": "Assignee"
+        },
+        "due_date": {
+          "type": "date",
+          "label": "Due Date"
+        },
+        "description": {
+          "type": "text",
+          "label": "Description"
+        },
+        "tags": {
+          "type": "multi-select",
+          "label": "Tags"
+        }
+      }
+    }
+  ],
+  "relationships": []
+}
