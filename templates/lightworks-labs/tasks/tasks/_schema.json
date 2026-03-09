@@ -1,8 +1,8 @@
 {
   "properties": {
     "title": { "type": "text" },
-    "status": { "type": "multi-select" },
-    "priority": { "type": "multi-select" },
+    "status": { "type": "multi-select", "options": ["todo", "in-progress", "done", "cancelled"] },
+    "priority": { "type": "multi-select", "options": ["low", "medium", "high", "critical"] },
     "assignee": { "type": "text" },
     "due_date": { "type": "date" },
     "description": { "type": "text" }
