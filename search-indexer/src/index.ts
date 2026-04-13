@@ -322,14 +322,14 @@ function loadConfig(configPath: string, contentDir: string): IndexConfig {
 
 // ─── Main build function ──────────────────────────────────────────────────────
 
-async function buildIndex(contentDir: string, outputDir: string): Promise<void> {
-  console.log('Lightworks Search Indexer v2.1.1');
+async function buildIndex(contentDir: string, outputDir: string, configPath?: string | null): Promise<void> {
+  console.log('Lightworks Search Indexer v2.1.2');
   console.log('Building search index...');
   console.log(`  Content directory: ${contentDir}`);
   console.log(`  Output directory: ${outputDir}`);
 
-  const configPath = path.join(outputDir, 'config.json');
-  const config = loadConfig(configPath, contentDir);
+  const resolvedConfigPath = configPath ?? path.join(outputDir, 'config.json');
+  const config = loadConfig(resolvedConfigPath, contentDir);
 
   // Detect collection folders (directories with _schema.json)
   const collectionMap = buildCollectionMap(contentDir);
@@ -410,8 +410,9 @@ async function buildIndex(contentDir: string, outputDir: string): Promise<void> 
 const args = process.argv.slice(2);
 const contentDir = args[0] || '.';
 const outputDir = args[1] || './.lightworks/search';
+const configPathArg = args[2] || null;
 
-buildIndex(path.resolve(contentDir), path.resolve(outputDir)).catch(e => {
+buildIndex(path.resolve(contentDir), path.resolve(outputDir), configPathArg ? path.resolve(configPathArg) : null).catch(e => {
   console.error('Build failed:', e);
   process.exit(1);
 });

@@ -37,4 +37,4 @@ runs:
     - name: Build search index
       shell: bash
       run: |
-        node ${{ github.action_path }}/dist/index.js "${{ inputs.content-dir }}" "${{ inputs.output-dir }}"
+        node ${{ github.action_path }}/dist/index.js "${{ inputs.content-dir }}" "${{ inputs.output-dir }}" "${{ inputs.config-path }}"
