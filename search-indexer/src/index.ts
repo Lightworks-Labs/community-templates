@@ -82,8 +82,8 @@ function matchesGlob(filePath: string, pattern: string): boolean {
     .replace(/\*\*\//g, '{{GLOBSTAR}}')   // **/ → optional path prefix
     .replace(/\*\*/g, '{{GLOBSTAR}}')     // remaining ** (e.g. trailing)
     .replace(/\*/g, '[^/]*')
-    .replace(/{{GLOBSTAR}}/g, '(?:.*/)?') // zero or more path segments
-    .replace(/\?/g, '.');
+    .replace(/\?/g, '.')                  // ? must come before GLOBSTAR expansion
+    .replace(/{{GLOBSTAR}}/g, '(?:.*/)?'); // zero or more path segments
   return new RegExp(`^${regexPattern}$`).test(filePath);
 }
 
@@ -323,7 +323,7 @@ function loadConfig(configPath: string, contentDir: string): IndexConfig {
 // ─── Main build function ──────────────────────────────────────────────────────
 
 async function buildIndex(contentDir: string, outputDir: string): Promise<void> {
-  console.log('Lightworks Search Indexer v2.1.0');
+  console.log('Lightworks Search Indexer v2.1.1');
   console.log('Building search index...');
   console.log(`  Content directory: ${contentDir}`);
   console.log(`  Output directory: ${outputDir}`);
