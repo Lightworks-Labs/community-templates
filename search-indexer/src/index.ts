@@ -286,15 +286,28 @@ function processFile(
 
 // ─── Config loading ───────────────────────────────────────────────────────────
 
-function loadConfig(configPath: string): IndexConfig {
+function loadConfig(configPath: string, contentDir: string): IndexConfig {
   if (fs.existsSync(configPath)) {
     try {
       const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
       console.log(`  Using config from ${configPath}`);
-      // Normalize legacy configs that used qmsPath-prefixed include patterns.
-      // If all include patterns start with a non-glob prefix that matches the
-      // content-dir basename, strip it so patterns work relative to content-dir.
-      const normalized = { ...DEFAULT_CONFIG, ...parsed };
+      const normalized: IndexConfig = { ...DEFAULT_CONFIG, ...parsed };
+
+      // Normalize legacy include patterns that were prefixed with the content-dir
+      // basename (e.g. "qms/**/*.md" when content-dir is "qms"). Strip the prefix
+      // so patterns are relative to content-dir, matching walkDir output.
+      const contentBasename = path.basename(path.resolve(contentDir));
+      if (contentBasename && contentBasename !== '.') {
+        const prefix = contentBasename + '/';
+        normalized.include = normalized.include.map(p =>
+          p.startsWith(prefix) ? p.slice(prefix.length) : p
+        );
+        normalized.exclude = normalized.exclude.map(p =>
+          p.startsWith(prefix) ? p.slice(prefix.length) : p
+        );
+        console.log(`  Normalized patterns for content-dir "${contentBasename}":`, normalized.include);
+      }
+
       return normalized;
     } catch {
       console.warn('  Failed to parse config, using defaults');
@@ -312,7 +325,7 @@ async function buildIndex(contentDir: string, outputDir: string): Promise<void> 
   console.log(`  Output directory: ${outputDir}`);
 
   const configPath = path.join(outputDir, 'config.json');
-  const config = loadConfig(configPath);
+  const config = loadConfig(configPath, contentDir);
 
   // Detect collection folders (directories with _schema.json)
   const collectionMap = buildCollectionMap(contentDir);
