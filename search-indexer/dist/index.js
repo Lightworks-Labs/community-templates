@@ -3,8 +3,17 @@
 /**
  * Lightworks Search Indexer
  *
- * Builds search indexes from markdown files.
- * Used as a GitHub Action or CLI tool.
+ * Builds search indexes from markdown files, partitioned by database collection.
+ * A "collection" is any directory that contains a _schema.json file.
+ *
+ * Output structure:
+ *   .lightworks/search/
+ *     metadata.json           ← master index (all entries, backward compat)
+ *     metadata/
+ *       <collection>.json     ← per-collection index for LQL engine
+ *       pages.json            ← non-collection pages
+ *     chunks/
+ *       <entry-id>-<n>.json
  *
  * Usage:
  *   node index.js [content-dir] [output-dir]
@@ -53,97 +62,130 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const gray_matter_1 = __importDefault(require("gray-matter"));
-// Default configuration
+// ─── Default configuration ────────────────────────────────────────────────────
 const DEFAULT_CONFIG = {
     version: '1.0.0',
     include: ['**/*.md'],
     exclude: [
         '**/node_modules/**',
         '**/.git/**',
-        '**/vendor/**',
         '**/.lightworks/**',
+        '**/vendor/**',
     ],
     maxFileSize: 1048576, // 1MB
     chunkSize: 100, // lines per chunk
 };
-// Simple glob matching
+// ─── Glob matching ────────────────────────────────────────────────────────────
 function matchesGlob(filePath, pattern) {
     const regexPattern = pattern
         .replace(/\*\*/g, '{{GLOBSTAR}}')
         .replace(/\*/g, '[^/]*')
         .replace(/{{GLOBSTAR}}/g, '.*')
         .replace(/\?/g, '.');
-    const regex = new RegExp(`^${regexPattern}$`);
-    return regex.test(filePath);
+    return new RegExp(`^${regexPattern}$`).test(filePath);
 }
 function shouldInclude(filePath, config) {
-    const normalizedPath = filePath.replace(/\\/g, '/');
-    // Check excludes first
+    const normalized = filePath.replace(/\\/g, '/');
     for (const pattern of config.exclude) {
-        if (matchesGlob(normalizedPath, pattern)) {
+        if (matchesGlob(normalized, pattern))
             return false;
-        }
     }
-    // Check includes
     for (const pattern of config.include) {
-        if (matchesGlob(normalizedPath, pattern)) {
+        if (matchesGlob(normalized, pattern))
             return true;
-        }
     }
     return false;
 }
-// Recursively find all files
+// ─── Directory walking ────────────────────────────────────────────────────────
 function walkDir(dir, baseDir = dir) {
-    const files = [];
-    if (!fs.existsSync(dir)) {
-        return files;
-    }
+    if (!fs.existsSync(dir))
+        return [];
     const entries = fs.readdirSync(dir, { withFileTypes: true });
+    const files = [];
     for (const entry of entries) {
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
             files.push(...walkDir(fullPath, baseDir));
         }
         else {
-            const relativePath = path.relative(baseDir, fullPath);
-            files.push(relativePath);
+            files.push(path.relative(baseDir, fullPath));
         }
     }
     return files;
 }
-// Generate a stable ID from a path
+// ─── Collection detection ─────────────────────────────────────────────────────
+/**
+ * Build a map of absolute directory path → collection name for every
+ * directory that contains a _schema.json file.
+ */
+function buildCollectionMap(contentDir) {
+    const map = new Map();
+    const allFiles = walkDir(contentDir);
+    for (const f of allFiles) {
+        if (path.basename(f) === '_schema.json') {
+            const dirAbs = path.resolve(contentDir, path.dirname(f));
+            const collectionName = path.basename(dirAbs);
+            map.set(dirAbs, collectionName);
+        }
+    }
+    return map;
+}
+/**
+ * Determine the LQL collection type for a given file path.
+ *
+ * Rules:
+ *  - <collection>/index.md (direct child of collection root) → 'page'
+ *    (this is the database overview/index page, not a record)
+ *  - Any other file under a collection folder → collection name
+ *  - Files not under any collection folder → 'page'
+ *
+ * When directories are nested (collection inside a collection), the deepest
+ * matching ancestor wins.
+ */
+function getCollectionType(filePath, contentDir, collectionMap) {
+    const fullPath = path.resolve(contentDir, filePath);
+    const dirAbs = path.dirname(fullPath);
+    const basename = path.basename(fullPath);
+    // If this is index.md sitting directly in a collection root → page
+    if (basename === 'index.md' && collectionMap.has(dirAbs)) {
+        return 'page';
+    }
+    // Walk up ancestors, pick the deepest (most specific) collection
+    let current = dirAbs;
+    const absContentDir = path.resolve(contentDir);
+    while (current.length >= absContentDir.length) {
+        if (collectionMap.has(current)) {
+            return collectionMap.get(current);
+        }
+        const parent = path.dirname(current);
+        if (parent === current)
+            break; // filesystem root
+        current = parent;
+    }
+    return 'page';
+}
+// ─── ID generation ────────────────────────────────────────────────────────────
 function generateId(filePath) {
-    // Use the full path to ensure uniqueness
-    // Replace path separators with underscores, other special chars with dashes
     return filePath
-        .replace(/\\/g, '/') // Normalize Windows paths
-        .replace(/\//g, '_') // Use underscore for directory separators
-        .replace(/[^a-zA-Z0-9_]/g, '-') // Replace other special chars with dash
-        .replace(/-+/g, '-') // Collapse multiple dashes
-        .replace(/^-|-$/g, '') // Trim leading/trailing dashes
+        .replace(/\\/g, '/')
+        .replace(/\//g, '_')
+        .replace(/[^a-zA-Z0-9_]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
         .toLowerCase();
 }
-// Extract title from markdown content
+// ─── Title extraction ─────────────────────────────────────────────────────────
 function extractTitle(content, frontmatter, filePath) {
-    // Try frontmatter title first
     if (frontmatter.title && typeof frontmatter.title === 'string') {
         return frontmatter.title;
     }
-    // Try first H1 heading
-    const h1Match = content.match(/^#\s+(.+)$/m);
-    if (h1Match) {
-        return h1Match[1].trim();
-    }
-    // Fallback to filename without extension
-    const basename = path.basename(filePath, path.extname(filePath));
-    return basename.replace(/[-_]/g, ' ');
+    const h1 = content.match(/^#\s+(.+)$/m);
+    if (h1)
+        return h1[1].trim();
+    const base = path.basename(filePath, path.extname(filePath));
+    return base === 'index' ? path.basename(path.dirname(filePath)) : base.replace(/[-_]/g, ' ');
 }
-// Determine if this is a database record (has schema-like properties)
-function isRecord(frontmatter) {
-    const recordIndicators = ['status', 'priority', 'category', 'type', 'id'];
-    return recordIndicators.some((key) => key in frontmatter);
-}
-// Chunk content into smaller pieces
+// ─── Content chunking ─────────────────────────────────────────────────────────
 function chunkContent(content, entryId, chunkSize) {
     const lines = content.split('\n');
     const chunks = [];
@@ -151,91 +193,99 @@ function chunkContent(content, entryId, chunkSize) {
     let chunkIndex = 0;
     for (let i = 0; i < lines.length; i += chunkSize) {
         const chunkId = `${entryId}-${chunkIndex}`;
-        const startLine = i + 1;
         const endLine = Math.min(i + chunkSize, lines.length);
-        const chunkContent = lines.slice(i, endLine).join('\n');
         chunks.push({
             id: chunkId,
             entryId,
-            startLine,
+            startLine: i + 1,
             endLine,
-            content: chunkContent,
+            content: lines.slice(i, endLine).join('\n'),
         });
         chunkIds.push(chunkId);
         chunkIndex++;
     }
     return { chunks, chunkIds };
 }
-// Process a single file
-function processFile(filePath, contentDir, config) {
+// ─── File processing ──────────────────────────────────────────────────────────
+function processFile(filePath, contentDir, collectionMap, config) {
     const fullPath = path.join(contentDir, filePath);
-    // Check file size
+    // Skip _schema.json files — they're collection metadata, not records
+    if (path.basename(filePath) === '_schema.json')
+        return null;
     const stats = fs.statSync(fullPath);
     if (stats.size > config.maxFileSize) {
         console.warn(`  Skipping ${filePath}: exceeds max file size`);
         return null;
     }
-    // Read and parse file
-    const fileContent = fs.readFileSync(fullPath, 'utf-8');
-    const { data: frontmatter, content } = (0, gray_matter_1.default)(fileContent);
+    const raw = fs.readFileSync(fullPath, 'utf-8');
+    const { data: frontmatter, content } = (0, gray_matter_1.default)(raw);
     const id = generateId(filePath);
     const title = extractTitle(content, frontmatter, filePath);
-    const type = isRecord(frontmatter) ? 'record' : 'page';
-    const lines = content.split('\n');
-    // Extract string properties
+    const type = getCollectionType(filePath, contentDir, collectionMap);
+    // Extract string-valued properties from frontmatter
     const properties = {};
     for (const [key, value] of Object.entries(frontmatter)) {
         if (typeof value === 'string') {
             properties[key] = value;
         }
+        else if (Array.isArray(value)) {
+            // Store arrays as comma-separated for simple string matching
+            properties[key] = value.filter(v => typeof v === 'string').join(', ');
+        }
     }
-    // Chunk the content
     const { chunks, chunkIds } = chunkContent(content, id, config.chunkSize);
     const entry = {
         id,
-        path: filePath,
+        path: filePath.replace(/\\/g, '/'),
         title,
         type,
         properties,
-        lineCount: lines.length,
+        lineCount: content.split('\n').length,
         chunkIds,
     };
     return { entry, chunks };
 }
-// Load config from file or use defaults
+// ─── Config loading ───────────────────────────────────────────────────────────
 function loadConfig(configPath) {
     if (fs.existsSync(configPath)) {
         try {
-            const configContent = fs.readFileSync(configPath, 'utf-8');
-            const parsed = JSON.parse(configContent);
+            const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
             console.log(`  Using config from ${configPath}`);
-            return { ...DEFAULT_CONFIG, ...parsed };
+            // Normalize legacy configs that used qmsPath-prefixed include patterns.
+            // If all include patterns start with a non-glob prefix that matches the
+            // content-dir basename, strip it so patterns work relative to content-dir.
+            const normalized = { ...DEFAULT_CONFIG, ...parsed };
+            return normalized;
         }
-        catch (e) {
-            console.warn(`  Failed to parse config, using defaults`);
+        catch {
+            console.warn('  Failed to parse config, using defaults');
         }
     }
     return DEFAULT_CONFIG;
 }
-// Main build function
+// ─── Main build function ──────────────────────────────────────────────────────
 async function buildIndex(contentDir, outputDir) {
-    console.log(`Lightworks Search Indexer v1.0.0`);
-    console.log(`Building search index...`);
+    console.log('Lightworks Search Indexer v2.0.0');
+    console.log('Building search index...');
     console.log(`  Content directory: ${contentDir}`);
     console.log(`  Output directory: ${outputDir}`);
-    // Load config
     const configPath = path.join(outputDir, 'config.json');
     const config = loadConfig(configPath);
-    // Find all files
+    // Detect collection folders (directories with _schema.json)
+    const collectionMap = buildCollectionMap(contentDir);
+    if (collectionMap.size > 0) {
+        console.log(`  Collections detected: ${[...collectionMap.values()].join(', ')}`);
+    }
+    // Find and filter files
     const allFiles = walkDir(contentDir);
-    const includedFiles = allFiles.filter((f) => shouldInclude(f, config));
+    const includedFiles = allFiles.filter(f => shouldInclude(f, config));
     console.log(`  Found ${allFiles.length} files, ${includedFiles.length} match include patterns`);
     // Process files
     const entries = [];
     const allChunks = [];
     for (const filePath of includedFiles) {
         try {
-            const result = processFile(filePath, contentDir, config);
+            const result = processFile(filePath, contentDir, collectionMap, config);
             if (result) {
                 entries.push(result.entry);
                 allChunks.push(...result.chunks);
@@ -248,27 +298,39 @@ async function buildIndex(contentDir, outputDir) {
     console.log(`  Processed ${entries.length} entries, ${allChunks.length} chunks`);
     // Create output directories
     const chunksDir = path.join(outputDir, 'chunks');
+    const metadataDir = path.join(outputDir, 'metadata');
     fs.mkdirSync(outputDir, { recursive: true });
     fs.mkdirSync(chunksDir, { recursive: true });
-    // Write metadata index
-    const metadataIndex = {
-        version: config.version,
-        generatedAt: new Date().toISOString(),
-        entries,
-    };
-    fs.writeFileSync(path.join(outputDir, 'metadata.json'), JSON.stringify(metadataIndex, null, 2));
-    // Write chunks
+    fs.mkdirSync(metadataDir, { recursive: true });
+    const generatedAt = new Date().toISOString();
+    // ── Write master metadata.json (backward compat for Command-K search) ──────
+    const master = { version: config.version, generatedAt, entries };
+    fs.writeFileSync(path.join(outputDir, 'metadata.json'), JSON.stringify(master, null, 2));
+    // ── Write per-collection metadata files for LQL engine ───────────────────
+    const byCollection = new Map();
+    for (const entry of entries) {
+        const col = entry.type; // 'requirements', 'tests', 'page', etc.
+        if (!byCollection.has(col))
+            byCollection.set(col, []);
+        byCollection.get(col).push(entry);
+    }
+    for (const [collection, colEntries] of byCollection) {
+        const colIndex = { version: config.version, generatedAt, entries: colEntries };
+        fs.writeFileSync(path.join(metadataDir, `${collection}.json`), JSON.stringify(colIndex, null, 2));
+        console.log(`  Wrote metadata/${collection}.json (${colEntries.length} entries)`);
+    }
+    // ── Write chunks ──────────────────────────────────────────────────────────
     for (const chunk of allChunks) {
         fs.writeFileSync(path.join(chunksDir, `${chunk.id}.json`), JSON.stringify(chunk, null, 2));
     }
-    console.log(`  Wrote metadata.json and ${allChunks.length} chunk files`);
-    console.log(`Done!`);
+    console.log(`  Wrote metadata.json, ${byCollection.size} per-collection files, and ${allChunks.length} chunk files`);
+    console.log('Done!');
 }
-// CLI entry point
+// ─── CLI entry point ──────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
 const contentDir = args[0] || '.';
 const outputDir = args[1] || './.lightworks/search';
-buildIndex(path.resolve(contentDir), path.resolve(outputDir)).catch((e) => {
+buildIndex(path.resolve(contentDir), path.resolve(outputDir)).catch(e => {
     console.error('Build failed:', e);
     process.exit(1);
 });
