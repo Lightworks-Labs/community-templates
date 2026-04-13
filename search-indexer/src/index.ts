@@ -79,9 +79,10 @@ const DEFAULT_CONFIG: IndexConfig = {
 
 function matchesGlob(filePath: string, pattern: string): boolean {
   const regexPattern = pattern
-    .replace(/\*\*/g, '{{GLOBSTAR}}')
+    .replace(/\*\*\//g, '{{GLOBSTAR}}')   // **/ → optional path prefix
+    .replace(/\*\*/g, '{{GLOBSTAR}}')     // remaining ** (e.g. trailing)
     .replace(/\*/g, '[^/]*')
-    .replace(/{{GLOBSTAR}}/g, '.*')
+    .replace(/{{GLOBSTAR}}/g, '(?:.*/)?') // zero or more path segments
     .replace(/\?/g, '.');
   return new RegExp(`^${regexPattern}$`).test(filePath);
 }
@@ -266,6 +267,9 @@ function processFile(
     } else if (Array.isArray(value)) {
       // Store arrays as comma-separated for simple string matching
       properties[key] = value.filter(v => typeof v === 'string').join(', ');
+    } else if (value !== null && typeof value === 'object') {
+      // Serialize objects (e.g. esign: { name, date, email }) as JSON
+      properties[key] = JSON.stringify(value);
     }
   }
 
@@ -319,7 +323,7 @@ function loadConfig(configPath: string, contentDir: string): IndexConfig {
 // ─── Main build function ──────────────────────────────────────────────────────
 
 async function buildIndex(contentDir: string, outputDir: string): Promise<void> {
-  console.log('Lightworks Search Indexer v2.0.0');
+  console.log('Lightworks Search Indexer v2.1.0');
   console.log('Building search index...');
   console.log(`  Content directory: ${contentDir}`);
   console.log(`  Output directory: ${outputDir}`);
