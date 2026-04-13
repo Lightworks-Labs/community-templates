@@ -5,16 +5,28 @@ A GitHub Action that builds search indexes from markdown files for [Lightworks](
 ## Usage
 
 ```yaml
-- uses: Lightworks-Labs/community-templates/search-indexer@v1
+- uses: Lightworks-Labs/community-templates/search-indexer@v2
 ```
 
 ### With options
 
 ```yaml
-- uses: Lightworks-Labs/community-templates/search-indexer@v1
+- uses: Lightworks-Labs/community-templates/search-indexer@v2
   with:
     content-dir: './docs'
     output-dir: '.lightworks/search'
+```
+
+### Subfolder connection
+
+If your QMS lives in a subdirectory of the repo (e.g. `qms/`), pass explicit `content-dir` and `output-dir` so the index is written into the right location:
+
+```yaml
+- uses: Lightworks-Labs/community-templates/search-indexer@v2
+  with:
+    content-dir: 'qms'
+    output-dir: 'qms/.lightworks/search'
+    config-path: 'qms/.lightworks/search/config.json'
 ```
 
 ## Inputs
@@ -25,9 +37,17 @@ A GitHub Action that builds search indexes from markdown files for [Lightworks](
 | `output-dir` | Directory to write the search index | `.lightworks/search` |
 | `config-path` | Path to config file | `.lightworks/search/config.json` |
 
+## Output
+
+The action generates:
+
+- `<output-dir>/metadata.json` — Master index of all documents (backward compat)
+- `<output-dir>/metadata/<collection>.json` — Per-collection index for LQL queries
+- `<output-dir>/chunks/*.json` — Content chunks for full-text search
+
 ## Configuration
 
-Create a `.lightworks/search/config.json` file to customize indexing:
+Create a config file at `config-path` to customize indexing:
 
 ```json
 {
@@ -40,13 +60,6 @@ Create a `.lightworks/search/config.json` file to customize indexing:
 }
 ```
 
-## Output
-
-The action generates:
-
-- `.lightworks/search/metadata.json` - Index of all documents with frontmatter
-- `.lightworks/search/chunks/*.json` - Content chunks for full-text search
-
 ## Example Workflow
 
 ```yaml
@@ -58,6 +71,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-index:
     runs-on: ubuntu-latest
@@ -65,16 +81,30 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build search index
-        uses: Lightworks-Labs/community-templates/search-indexer@v1
+        uses: Lightworks-Labs/community-templates/search-indexer@v2
+        with:
+          content-dir: 'qms'
+          output-dir: 'qms/.lightworks/search'
+          config-path: 'qms/.lightworks/search/config.json'
 
       - name: Commit index
         run: |
           git config user.name "Lightworks Bot"
           git config user.email "bot@lightworks.md"
-          git add .lightworks/search/
+          git add qms/.lightworks/search/
           git diff --staged --quiet || git commit -m "chore: update search index"
           git push
 ```
+
+## Changelog
+
+### v2.0.0
+- Per-collection metadata files (`metadata/<collection>.json`) for LQL engine
+- Explicit `content-dir` and `output-dir` inputs required for subfolder connections
+- Improved collection detection via `_schema.json` discovery
+
+### v1.0.0
+- Initial release
 
 ## License
 
